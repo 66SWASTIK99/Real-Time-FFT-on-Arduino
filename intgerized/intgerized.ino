@@ -1,11 +1,14 @@
-#include <Arduino.h>
-
 #define FS        512
 #define N         128
 #define HOP_SIZE  64
 #define PI        3.1415
 
-uint8_t circBuf[N];   
+#define DIV_2    (1.0f / 2.0f)
+#define DIV_6    (1.0f / 6.0f)
+#define DIV_24   (1.0f / 24.0f)
+#define DIV_120  (1.0f / 120.0f)    // 5!
+
+int8_t circBuf[N];   //circular buffer
 float fftReal[N];
 float fftImag[N];
 
@@ -26,42 +29,43 @@ const uint8_t reverse7Table[64]={
  14, 78, 46,110, 30, 94, 62,126
 };
 
-float squareRoot(float number){
-  if (number == 0) return 0;  
-  float guess = number / 2.0; // Initial guess
-  float error = 0.01;     // Accuracy
-  float diff;
+// float squareRoot(float number){
+//   if (number == 0) return 0;  
+//   float guess = number / 2.0; //initial guess
+//   float error = 0.09;     // accuracy
+//   float diff;
 
-  do {
-    float newGuess = 0.5 * (guess + number / guess);
-    diff = newGuess - guess;
-    if (diff < 0) diff = -diff; // Absolute value
-    guess = newGuess;
-  } while (diff > error);
+//   do {
+//     float newGuess = 0.5 * (guess + number / guess);
+//     diff = newGuess - guess;
+//     if (diff < 0) diff = -diff; // absolute value
+//     guess = newGuess;
+//   } while (diff > error);
 
-  return guess;
-}
+//   return guess;
+// }
 
 //MACLAURIN SIN, COS
-inline float fastSin(float x){
-  // Range reduction to [-pi, pi]
-  while (x > PI)  x -= 2 * PI;
+inline float fastSin(float x) {
+  while (x > PI) x -= 2 * PI; 
   while (x < -PI) x += 2 * PI;
-
   float x2 = x * x;
-  return x * (1.0
-             - x2 / 6.0
-             + (x2 * x2) / 120.0);
+  // x * (1 - x²/6 + x⁴/120 - x⁶/5040)
+  return x * (1.0f +
+              x2 * (-DIV_6 +
+              x2 * ( DIV_120
+              )));
 }
 
-inline float fastCos(float x){
-  while (x > PI)  x -= 2 * PI;
+inline float fastCos(float x) {
+  while (x > PI) x -= 2 * PI; 
   while (x < -PI) x += 2 * PI;
-
   float x2 = x * x;
-  return 1.0
-       - x2 / 2.0
-       + (x2 * x2) / 24.0;
+  // 1 - x²/2 + x⁴/24 - x⁶/720
+  return 1.0f +
+         x2 * (-DIV_2 +
+         x2 * ( DIV_24 
+         ));
 }
 
 //HANN WINDOW
@@ -185,8 +189,8 @@ void loop() {
     Serial.write(0xAA);
     for (int i = 0; i < N / 2; i++) {
       float mag = fftReal[i] * fftReal[i] + fftImag[i] * fftImag[i];
-      float approx = squareRoot(mag);
-      Serial.write((byte *)&approx, sizeof(approx));
+      //float approx = squareRoot(mag);
+      Serial.write((byte *)&mag, 4);
     }
   }
 }
