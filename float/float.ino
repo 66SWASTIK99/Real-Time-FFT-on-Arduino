@@ -5,6 +5,15 @@
 #define HOP_SIZE  64
 #define PI        3.1415
 
+#define adc_2_volt (5.0f / 1023.0f)
+
+#define DIV_2    (1.0f / 2.0f)
+#define DIV_6    (1.0f / 6.0f)
+#define DIV_24   (1.0f / 24.0f)
+#define DIV_120  (1.0f / 120.0f)    // 5!
+//#define DIV_720  (1.0f / 720.0f)    // 6!
+//#define DIV_5040 (1.0f / 5040.0f)   // 7!
+
 float circBuf[N];   
 float fftReal[N];
 float fftImag[N];
@@ -26,42 +35,45 @@ const uint8_t reverse7Table[64]={
  14, 78, 46,110, 30, 94, 62,126
 };
 
-float squareRoot(float number){
-  if (number == 0) return 0;  
-  float guess = number / 2.0; // Initial guess
-  float error = 0.01;     // Accuracy
-  float diff;
+// float squareRoot(float number){
+//   if (number == 0) return 0;  
+//   float guess = number / 2.0; // Initial guess
+//   float error = 0.01;     // Accuracy
+//   float diff;
 
-  do {
-    float newGuess = 0.5 * (guess + number / guess);
-    diff = newGuess - guess;
-    if (diff < 0) diff = -diff; // Absolute value
-    guess = newGuess;
-  } while (diff > error);
+//   do {
+//     float newGuess = 0.5 * (guess + number / guess);
+//     diff = newGuess - guess;
+//     if (diff < 0) diff = -diff; // Absolute value
+//     guess = newGuess;
+//   } while (diff > error);
 
-  return guess;
-}
+//   return guess;
+// }
 
 //MACLAURIN SIN, COS
-inline float fastSin(float x){
-  // Range reduction to [-pi, pi]
-  while (x > PI)  x -= 2 * PI;
+inline float fastSin(float x) {
+  while (x > PI) x -= 2 * PI; 
   while (x < -PI) x += 2 * PI;
-
   float x2 = x * x;
-  return x * (1.0
-             - x2 / 6.0
-             + (x2 * x2) / 120.0);
+  // x * (1 - x²/6 + x⁴/120 - x⁶/5040)
+  return x * (1.0f -
+              x2 * ( DIV_6 +
+              x2 * ( DIV_120 //-
+              //x2 * ( DIV_5040)
+              )));
 }
 
-inline float fastCos(float x){
-  while (x > PI)  x -= 2 * PI;
+inline float fastCos(float x) {
+  while (x > PI) x -= 2 * PI; 
   while (x < -PI) x += 2 * PI;
-
   float x2 = x * x;
-  return 1.0
-       - x2 / 2.0
-       + (x2 * x2) / 24.0;
+  // 1 - x²/2 + x⁴/24 - x⁶/720
+  return 1.0f -
+         x2 * ( DIV_2 +
+         x2 * ( DIV_24 //-
+         //x2 * ( DIV_720)
+         ));
 }
 
 //HANN WINDOW
@@ -138,7 +150,7 @@ void setupTimer1_512Hz() {
 }
 
 ISR(TIMER1_COMPA_vect) {
-  float sample = (5.0 / 1023.0) * analogRead(A0);     // conversion to actual value
+  float sample = adc_2_volt * analogRead(A0) -2.5;     // conversion to actual value
 
   circBuf[writeIndex] = sample;
   writeIndex = (writeIndex + 1) % N;
@@ -178,6 +190,12 @@ void loop() {
     fftReady = false;
 
     copyCircularToFFT();
+    // for(int i = 0; i < N; i++){
+    //   Serial.print(i);
+    //   Serial.print(": ");
+    //   Serial.println(fftReal[i]);
+    // }
+
 
     applyHannWindow(fftReal);
     fft(fftReal, fftImag);
@@ -185,8 +203,9 @@ void loop() {
     Serial.write(0xAA);
     for (int i = 0; i < N / 2; i++) {
       float mag = fftReal[i] * fftReal[i] + fftImag[i] * fftImag[i];
-      float approx = squareRoot(mag);
-      Serial.write((byte *)&approx, sizeof(approx));
+      //float approx = squareRoot(mag);
+      //Serial.println(mag);
+      Serial.write((byte *)&mag, 4);
     }
   }
 }

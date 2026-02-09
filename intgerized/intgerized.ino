@@ -3,10 +3,14 @@
 #define HOP_SIZE  64
 #define PI        3.1415
 
+#define adc_2_volt (50.0f / 1023.0f)
+
 #define DIV_2    (1.0f / 2.0f)
 #define DIV_6    (1.0f / 6.0f)
 #define DIV_24   (1.0f / 24.0f)
 #define DIV_120  (1.0f / 120.0f)    // 5!
+//#define DIV_720  (1.0f / 720.0f)    // 6!
+//#define DIV_5040 (1.0f / 5040.0f)   // 7!
 
 int8_t circBuf[N];   //circular buffer
 float fftReal[N];
@@ -142,9 +146,9 @@ void setupTimer1_512Hz() {
 }
 
 ISR(TIMER1_COMPA_vect) {
-  float sample = (5.0 / 1023.0) * analogRead(A0);     // conversion to actual value
+  float sample = adc_2_volt * analogRead(A0) - 25;     // conversion to actual value
 
-  circBuf[writeIndex] = sample*10;
+  circBuf[writeIndex] = sample;
   writeIndex = (writeIndex + 1) % N;
 
   samplesCollected++;
@@ -183,6 +187,12 @@ void loop() {
 
     copyCircularToFFT();
 
+    // for(int i = 0; i < N; i++){
+    //   Serial.print(i);
+    //   Serial.print(": ");
+    //   Serial.println(fftReal[i]);
+    // }
+
     applyHannWindow(fftReal);
     fft(fftReal, fftImag);
 
@@ -190,6 +200,9 @@ void loop() {
     for (int i = 0; i < N / 2; i++) {
       float mag = fftReal[i] * fftReal[i] + fftImag[i] * fftImag[i];
       //float approx = squareRoot(mag);
+      //Serial.print(i);
+      //Serial.print(": ");
+      //Serial.println(mag);
       Serial.write((byte *)&mag, 4);
     }
   }
