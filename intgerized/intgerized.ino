@@ -149,13 +149,14 @@ ISR(TIMER1_COMPA_vect) {
   float sample = adc_2_volt * analogRead(A0) - 25;     // conversion to actual value
 
   circBuf[writeIndex] = sample;
-  writeIndex = (writeIndex + 1) % N;
+  writeIndex = (writeIndex + 1) & (N-1); //& works same as % N
 
   samplesCollected++;
 
   // trigger FFT every HOP_SIZE samples after initial fill
   if (samplesCollected >= N &&
-      ((samplesCollected - N) % HOP_SIZE == 0)) {
+      (((samplesCollected - N) & HOP_SIZE-1) == 0)) {   //& same as % HOP_SIZE
+    fftReady = true;
     fftReady = true;
   }
 }
@@ -177,7 +178,8 @@ void copyCircularToFFT() {
   for (int i = 0; i < N; i++) {
     fftReal[i] = circBuf[idx]/10;
     fftImag[i] = 0.0;
-    idx = (idx + 1) % N;
+    idx = (idx + 1) & (N-1);     //& same as % N
+    fftReady = true;
   }
 }
 
@@ -196,14 +198,15 @@ void loop() {
     applyHannWindow(fftReal);
     fft(fftReal, fftImag);
 
-    Serial.write(0xAA);
+    
     for (int i = 0; i < N / 2; i++) {
-      float mag = fftReal[i] * fftReal[i] + fftImag[i] * fftImag[i];
+      fftReal[i] = fftReal[i] * fftReal[i] + fftImag[i] * fftImag[i];
       //float approx = squareRoot(mag);
       //Serial.print(i);
       //Serial.print(": ");
       //Serial.println(mag);
-      Serial.write((byte *)&mag, 4);
     }
+    Serial.write(0xAA);
+    Serial.write((byte *)fftReal, 256);
   }
 }
